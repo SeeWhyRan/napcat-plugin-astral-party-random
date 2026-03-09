@@ -5,7 +5,7 @@
   "type": "module",
   "main": "index.mjs",
   "description": "星趴随机生成工具：随机生成角色选择与地图选择",
-  "author": "Your Name",
+  "author": "踏水寻",
   "license": "MIT",
   "keywords": [
     "napcat",
