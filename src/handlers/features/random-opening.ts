@@ -35,24 +35,20 @@ export async function tryHandleRandomOpeningFlow(ctx: NapCatPluginContext, event
         let scope: 'global' | 'personal' | undefined = sel.scope;
         let index: number | undefined = sel.index;
 
-        const tips: string[] = [];
+        let head = '';
 
-        // 未选择：提示，并默认全局1；若没有全局预设，默认个人1
+        // 未选择：默认全局1；若没有全局预设，默认个人1
         if (!scope || !index) {
-            tips.push('你尚未选择默认预设。');
             if (globals.length > 0) {
                 scope = 'global';
                 index = 1;
-                tips.push('将默认使用：全局1');
+                head = '未选择预设，默认全局1\n\n';
             } else if (personals.length > 0) {
                 scope = 'personal';
                 index = 1;
-                tips.push('当前无全局预设，将默认使用：个人1');
+                head = '未选择预设，默认个人1\n\n';
             } else {
-                tips.push('当前既无全局预设，也无个人预设。');
-                tips.push('请先使用：/随机开局导入预设');
-                tips.push('或让管理员在配置中添加全局预设。');
-                await sendReply(ctx, event, tips.join('\n'));
+                await sendReply(ctx, event, '无可用预设（/随机开局帮助）');
                 return true;
             }
         }
@@ -75,8 +71,7 @@ export async function tryHandleRandomOpeningFlow(ctx: NapCatPluginContext, event
                 scope = 'global';
                 index = 1;
             } else {
-                tips.push('没有可用预设，请先导入个人预设或配置全局预设。');
-                await sendReply(ctx, event, tips.join('\n'));
+                await sendReply(ctx, event, '无可用预设（/随机开局帮助）');
                 return true;
             }
         }
@@ -89,20 +84,15 @@ export async function tryHandleRandomOpeningFlow(ctx: NapCatPluginContext, event
         const preset = finalList[index - 1];
         try {
             const summary = generateOpeningSummaryFromUserJsonText(preset.presetJson);
-            const header = tips.length > 0
-                ? tips.join('\n') + `\n使用预设：${scope === 'global' ? '全局' : '个人'}${index}（${preset.name}）\n\n`
-                : `使用预设：${scope === 'global' ? '全局' : '个人'}${index}（${preset.name}）\n\n`;
-            await sendReply(ctx, event, header + formatOpeningSummary(summary));
+            const used = `预设: ${scope === 'global' ? '全局' : '个人'}${index} ${preset.name}\n\n`;
+            await sendReply(ctx, event, head + used + formatOpeningSummary(summary));
             return true;
         } catch (e: any) {
             const msg = typeof e?.message === 'string' ? e.message : String(e);
             await sendReply(
                 ctx,
                 event,
-                '使用预设生成随机开局失败：' + msg + '\n' +
-                    '你可以：\n' +
-                    '1) /随机开局预设列表 检查预设\n' +
-                    '2) /随机开局设置全局1 或 /随机开局设置个人1 重新选择'
+                '生成失败: ' + msg + '\n/随机开局帮助'
             );
             return true;
         }

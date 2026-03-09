@@ -22,6 +22,7 @@ import type {
     PluginHttpResponse
 } from 'napcat-types/napcat-onebot/network/plugin/types';
 import { pluginState } from '../core/state';
+import { validateRandomOpeningPresetJsonText } from '../domain/presets/validate';
 
 /**
  * 注册 API 路由
@@ -64,6 +65,30 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
             res.json({ code: 0, message: 'ok' });
         } catch (err) {
             ctx.logger.error('保存配置失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    // ==================== 随机开局（无鉴权）====================
+
+    /** 校验预设 JSON 是否可用 */
+    router.postNoAuth('/random-opening/validate-preset', async (req, res) => {
+        try {
+            const body = req.body as { presetJson?: unknown } | undefined;
+            const presetJson = body?.presetJson;
+            if (typeof presetJson !== 'string' || !presetJson.trim()) {
+                return res.status(400).json({ code: -1, message: 'presetJson 不能为空' });
+            }
+
+            try {
+                validateRandomOpeningPresetJsonText(presetJson);
+                res.json({ code: 0, data: { ok: true } });
+            } catch (e) {
+                const msg = (e && typeof (e as any).message === 'string') ? (e as any).message : String(e);
+                res.json({ code: 0, data: { ok: false, message: msg } });
+            }
+        } catch (err) {
+            ctx.logger.error('校验预设失败:', err);
             res.status(500).json({ code: -1, message: String(err) });
         }
     });

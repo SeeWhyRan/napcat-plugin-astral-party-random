@@ -18,6 +18,7 @@ import { generateId } from '../../domain/presets/id';
 import { validateRandomOpeningPresetJsonText } from '../../domain/presets/validate';
 
 const COMMANDS = {
+    help: ['/随机开局帮助', '/random_opening_help'],
     list: ['/随机开局预设列表', '/random_opening_preset_list'],
     import: ['/随机开局导入预设', '/random_opening_preset_import'],
     deletePrefix: ['/随机开局删除预设', '/random_opening_preset_delete'],
@@ -90,29 +91,40 @@ async function replyPresetList(ctx: NapCatPluginContext, event: OB11Message): Pr
     const personal = getUserPresets(userId);
 
     const lines: string[] = [];
-    lines.push('[= 随机开局预设列表 =]');
+    lines.push('[= 随机开局预设 =]');
 
     lines.push('');
-    lines.push('全局预设（所有人可用）:');
+    lines.push('全局:');
     if (globals.length === 0) {
-        lines.push('  (无)');
+        lines.push('  无');
     } else {
         globals.forEach((p, i) => lines.push('  ' + formatPresetLine(p, i + 1)));
     }
 
     lines.push('');
-    lines.push('个人预设（仅你可见/可删）:');
+    lines.push('个人:');
     if (personal.length === 0) {
-        lines.push('  (无)');
+        lines.push('  无');
     } else {
         personal.forEach((p, i) => lines.push('  ' + formatPresetLine(p, i + 1)));
     }
 
-    lines.push('');
-    lines.push('命令:');
-    lines.push('  /随机开局导入预设');
-    lines.push('  /随机开局删除预设<数字>   例：/随机开局删除预设1');
+    await sendReply(ctx, event, lines.join('\n'));
+}
 
+async function replyHelp(ctx: NapCatPluginContext, event: OB11Message): Promise<void> {
+    const lines: string[] = [];
+    lines.push('[= 随机开局帮助 =]');
+    lines.push('/随机开局');
+    lines.push('/随机开局预设列表');
+    lines.push('/随机开局导入预设');
+    lines.push('/随机开局删除预设<数字>');
+    lines.push('/随机开局设置[全局|个人][数字]');
+    lines.push('说明:');
+    lines.push('- 不传“全局/个人”默认全局；无全局时用个人');
+    lines.push('- 不传数字默认 1');
+    lines.push('- 全局预设仅能通过配置维护');
+    lines.push('- 导入流程可用 /取消');
     await sendReply(ctx, event, lines.join('\n'));
 }
 
@@ -149,6 +161,12 @@ export async function tryHandleRandomOpeningPresetFlow(ctx: NapCatPluginContext,
     const raw = event.raw_message || '';
     const text = raw.trim();
 
+    // 0) 帮助
+    if (matchExact(text, COMMANDS.help)) {
+        await replyHelp(ctx, event);
+        return true;
+    }
+
     // 1) 列表
     if (matchExact(text, COMMANDS.list)) {
         await replyPresetList(ctx, event);
@@ -161,10 +179,10 @@ export async function tryHandleRandomOpeningPresetFlow(ctx: NapCatPluginContext,
         const userId = String(event.user_id ?? '');
         const res = deleteUserPresetByIndex(userId, delIndex);
         if (!res.ok) {
-            await sendReply(ctx, event, '删除失败：' + (res.message || '未知错误'));
+            await sendReply(ctx, event, '删除失败: ' + (res.message || '未知错误'));
             return true;
         }
-        await sendReply(ctx, event, `已删除个人预设第 ${delIndex} 条。`);
+        await sendReply(ctx, event, `已删除: 个人${delIndex}`);
         pluginState.incrementProcessed();
         return true;
     }
@@ -188,25 +206,22 @@ export async function tryHandleRandomOpeningPresetFlow(ctx: NapCatPluginContext,
         if (!index) index = 1;
 
         if (!Number.isInteger(index) || index < 1) {
-            await sendReply(ctx, event, '设置失败：序号无效（从 1 开始）。');
+            await sendReply(ctx, event, '设置失败: 序号无效');
             return true;
         }
 
         const list = scope === 'global' ? globals : personals;
         if (list.length === 0) {
-            const msg = scope === 'global'
-                ? '当前没有全局预设，请先在配置中添加，或改用：/随机开局设置个人1'
-                : '你还没有个人预设，请先用：/随机开局导入预设';
-            await sendReply(ctx, event, msg);
+            await sendReply(ctx, event, scope === 'global' ? '无全局预设' : '无个人预设');
             return true;
         }
         if (index > list.length) {
-            await sendReply(ctx, event, `设置失败：序号超出范围（当前共 ${list.length} 条）。`);
+            await sendReply(ctx, event, `设置失败: 超出范围(共${list.length})`);
             return true;
         }
 
         setUserSelection(userId, scope, index);
-        await sendReply(ctx, event, `已设置默认预设：${scope === 'global' ? '全局' : '个人'}${index}（${list[index - 1].name}）`);
+        await sendReply(ctx, event, `默认预设: ${scope === 'global' ? '全局' : '个人'}${index} ${list[index - 1].name}`);
         pluginState.incrementProcessed();
         return true;
     }
@@ -231,7 +246,7 @@ export async function tryHandleRandomOpeningPresetFlow(ctx: NapCatPluginContext,
         await sendReply(
             ctx,
             event,
-            '请在 3 分钟内发送“网站导出的预设 JSON”（下一条消息将被读取并验证）。\n如需退出，请发送 /取消。'
+            '发送预设 JSON（3 分钟内），或 /取消'
         );
         return true;
     }
@@ -249,20 +264,20 @@ export async function tryHandleRandomOpeningPresetFlow(ctx: NapCatPluginContext,
 
     if (isCancel(text)) {
         clearPendingImport(key);
-        await sendReply(ctx, event, '已取消导入预设。');
+        await sendReply(ctx, event, '已取消');
         return true;
     }
 
     if (pending.step === 'wait_json') {
         // 允许用户重复发送导入命令：仅提示仍在等待
         if (matchExact(text, COMMANDS.import)) {
-            await sendReply(ctx, event, '当前正在等待你发送预设 JSON。\n如需退出，请发送 /取消。');
+            await sendReply(ctx, event, '等待 JSON（或 /取消）');
             return true;
         }
 
         const jsonText = safeExtractJsonText(text);
         if (!jsonText) {
-            await sendReply(ctx, event, '未检测到有效 JSON。请直接发送网站导出的预设 JSON（以 { 开头、} 结尾），或发送 /取消 退出。');
+            await sendReply(ctx, event, '未识别 JSON');
             return true;
         }
 
@@ -270,7 +285,7 @@ export async function tryHandleRandomOpeningPresetFlow(ctx: NapCatPluginContext,
             validateRandomOpeningPresetJsonText(jsonText);
         } catch (e: any) {
             const msg = typeof e?.message === 'string' ? e.message : String(e);
-            await sendReply(ctx, event, '该 JSON 无法作为随机开局预设使用：' + msg + '\n你可以重新发送 JSON，或发送 /取消 退出。');
+            await sendReply(ctx, event, '无效预设: ' + msg);
             return true;
         }
 
@@ -278,18 +293,18 @@ export async function tryHandleRandomOpeningPresetFlow(ctx: NapCatPluginContext,
         pending.jsonText = jsonText;
         pendingImportMap.set(key, pending);
 
-        await sendReply(ctx, event, '验证通过。请给这个预设取一个备注名（下一条消息将作为备注保存）。\n如需退出，请发送 /取消。');
+        await sendReply(ctx, event, '发送备注名（或 /取消）');
         return true;
     }
 
     // wait_name
     const name = text;
     if (!name) {
-        await sendReply(ctx, event, '备注不能为空，请重新发送备注名，或发送 /取消 退出。');
+        await sendReply(ctx, event, '备注不能为空');
         return true;
     }
     if (name.length > 40) {
-        await sendReply(ctx, event, '备注过长（最多 40 字），请缩短后重试，或发送 /取消 退出。');
+        await sendReply(ctx, event, '备注过长(最多40)');
         return true;
     }
 
@@ -304,7 +319,7 @@ export async function tryHandleRandomOpeningPresetFlow(ctx: NapCatPluginContext,
     upsertUserPreset(pending.userId, preset);
     clearPendingImport(key);
 
-    await sendReply(ctx, event, `已保存个人预设：${name}`);
+    await sendReply(ctx, event, `已保存: ${name}`);
     pluginState.incrementProcessed();
     return true;
 }
