@@ -37,6 +37,8 @@ export type GenerateCharConfig = {
   tagFilters: FilterConfig<string>[];
   charFilters: FilterConfig<string>[]; // char name
   colorFilter: FilterConfig<number>; // colorId
+  /** 新版网站导出可能包含：子配置列表（用于按模板生成多组） */
+  sub?: GenerateCharConfig[];
 };
 
 export type GenerateConfig = {
@@ -70,6 +72,8 @@ export type SerializedGenerateCharConfig = {
   tagFilters: Array<SerializedFilterConfig<string>>;
   charFilters: Array<SerializedFilterConfig<string>>;
   colorFilter: SerializedFilterConfig<string>;
+  /** 新版网站导出可能包含：子配置列表（用于按模板生成多组） */
+  sub?: SerializedGenerateCharConfig[];
 };
 
 export type SerializedFilterConfig<T> = {

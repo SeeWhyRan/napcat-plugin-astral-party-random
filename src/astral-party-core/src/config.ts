@@ -89,11 +89,17 @@ function storeCharConfig(
   const allChars = data.chars.map((c) => c.name);
   const allColorIds = Object.keys(data.colors); // "0".."5"
 
-  return {
+  const ret: SerializedGenerateCharConfig = {
     tagFilters: group.tagFilters.map((t) => storeFilterByName(t, (x) => x, allTags)),
     charFilters: group.charFilters.map((t) => storeFilterByName(t, (x) => x, allChars)),
     colorFilter: storeFilterByName(group.colorFilter, (x) => String(x), allColorIds),
   };
+
+  if (group.sub && Array.isArray(group.sub) && group.sub.length > 0) {
+    ret.sub = group.sub.map((s) => storeCharConfig(data, s as any));
+  }
+
+  return ret;
 }
 
 function recoverCharConfig(
@@ -104,11 +110,17 @@ function recoverCharConfig(
   const allChars = data.chars.map((c) => c.name);
   const allColorIds = Object.keys(data.colors).map((x) => Number(x));
 
-  return {
+  const ret: GenerateConfig["globalConfig"] = {
     tagFilters: (stored.tagFilters || []).map((t) => recoverFilter<string>(t as any, (x) => x, allTags)),
     charFilters: (stored.charFilters || []).map((t) => recoverFilter<string>(t as any, (x) => x, allChars)),
     colorFilter: recoverFilter<number>(stored.colorFilter as any, (x) => Number(x), allColorIds),
   };
+
+  if ((stored as any).sub && Array.isArray((stored as any).sub)) {
+    ret.sub = ((stored as any).sub as SerializedGenerateCharConfig[]).map((s) => recoverCharConfig(data, s));
+  }
+
+  return ret;
 }
 
 const DEFAULT_SETTINGS: GenerateSettings = {

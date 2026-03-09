@@ -79,7 +79,7 @@ function buildGroupPlan(
   group: GenerateConfig["globalConfig"],
   globalFilters: SerializedPlanFilter[] | null,
   isSingle: boolean,
-  globalConfig: GenerateConfig["globalConfig"]
+  globalConfig: GenerateConfig["globalConfig"] | null
 ): CharPlan {
   const filters: SerializedPlanFilter[] = [];
   filters.push(...randomizeAllFilters(group));
@@ -88,7 +88,7 @@ function buildGroupPlan(
     if (globalFilters) {
       // 复用同一份“已随机化过的全局过滤器”
       filters.push(...globalFilters);
-    } else {
+    } else if (globalConfig) {
       // 每组各自随机化一次全局过滤器
       filters.push(...randomizeAllFilters(globalConfig));
     }
@@ -104,10 +104,27 @@ function buildGroupPlan(
  */
 export function generatePlan(config: GenerateConfig, ref: { maps: Record<string, string>; difficulties: Record<string, string> }): Plan {
   const isSingle = config.groups.length === 0;
-  const groups = isSingle ? [config.globalConfig] : config.groups;
+  const hasSubTemplates = !isSingle && Array.isArray((config.globalConfig as any).sub) && (config.globalConfig as any).sub.length > 0;
 
-  const reuseGlobal = !!config.settings?.calculateGlobalFilterOnceOnly;
-  const generatedGlobalFilters = !isSingle && reuseGlobal ? randomizeAllFilters(config.globalConfig) : null;
+  // 非单组模式：
+  // - 没有 sub：沿用旧逻辑，groups = config.groups，且叠加 globalConfig 过滤器
+  // - 有 sub：把 sub 当作“组模板”，按 group 数量循环铺开；此时不再叠加 globalConfig 自身过滤器（兼容新版预设格式）
+  const groups: GenerateConfig["globalConfig"][] = (() => {
+    if (isSingle) return [config.globalConfig];
+    if (!hasSubTemplates) return config.groups as any;
+
+    const templates = (config.globalConfig as any).sub as GenerateConfig["globalConfig"][];
+    const count = config.groups.length;
+    const ret: GenerateConfig["globalConfig"][] = [];
+    for (let i = 0; i < count; i++) {
+      ret.push(templates[i % templates.length]!);
+    }
+    return ret;
+  })();
+
+  const shouldApplyGlobalFilters = !isSingle && !hasSubTemplates;
+  const reuseGlobal = shouldApplyGlobalFilters && !!config.settings?.calculateGlobalFilterOnceOnly;
+  const generatedGlobalFilters = reuseGlobal ? randomizeAllFilters(config.globalConfig) : null;
 
   const mapKeys = Object.keys(ref.maps);
   const difficultyKeys = Object.keys(ref.difficulties);
@@ -118,7 +135,14 @@ export function generatePlan(config: GenerateConfig, ref: { maps: Record<string,
   return {
     map,
     difficulty,
-    groups: groups.map((g) => buildGroupPlan(g, generatedGlobalFilters, isSingle, config.globalConfig)),
+    groups: groups.map((g) =>
+      buildGroupPlan(
+        g,
+        shouldApplyGlobalFilters ? generatedGlobalFilters : null,
+        isSingle,
+        shouldApplyGlobalFilters ? config.globalConfig : null
+      )
+    ),
   };
 }
 

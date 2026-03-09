@@ -19,7 +19,7 @@ import { validateRandomOpeningPresetJsonText } from '../../domain/presets/valida
 
 const COMMANDS = {
     help: ['/随机开局帮助', '/random_opening_help'],
-    list: ['/随机开局预设列表', '/random_opening_preset_list'],
+    list: ['/随机开局预设', '/random_opening_preset_list'],
     import: ['/随机开局导入预设', '/random_opening_preset_import'],
     deletePrefix: ['/随机开局删除预设', '/random_opening_preset_delete'],
     setPrefix: ['/随机开局设置', '/random_opening_preset_set'],
@@ -115,16 +115,21 @@ async function replyPresetList(ctx: NapCatPluginContext, event: OB11Message): Pr
 async function replyHelp(ctx: NapCatPluginContext, event: OB11Message): Promise<void> {
     const lines: string[] = [];
     lines.push('[= 随机开局帮助 =]');
-    lines.push('/随机开局');
-    lines.push('/随机开局预设列表');
-    lines.push('/随机开局导入预设');
-    lines.push('/随机开局删除预设<数字>');
-    lines.push('/随机开局设置[全局|个人][数字]');
+    lines.push('/随机开局  \n---执行随机开局');
+    lines.push('/随机开局预设  \n---查看预设列表');
+    lines.push('/随机开局导入预设  \n---导入个人预设');
+    lines.push('/随机开局删除预设<数字>  \n---删除个人预设');
+    lines.push('/随机开局设置[全局|个人][数字]  \n---设置默认预设');
+    lines.push('');
+    lines.push('示例:');
+    lines.push('/随机开局设置全局2');
+    lines.push('/随机开局设置个人1');
+    lines.push('/随机开局删除预设3');
+    lines.push('');
     lines.push('说明:');
-    lines.push('- 不传“全局/个人”默认全局；无全局时用个人');
-    lines.push('- 不传数字默认 1');
-    lines.push('- 全局预设仅能通过配置维护');
-    lines.push('- 导入流程可用 /取消');
+    lines.push('---导入预设前，请访问下面的随机开局选择器网站，配置好预设后导出配置');
+    lines.push('---导出后会下载一个Json文本文件，打开它复制里面的文本发送给机器人即可');
+    lines.push('https://ap.xypp.cc/');
     await sendReply(ctx, event, lines.join('\n'));
 }
 
