@@ -18,11 +18,40 @@
 
 import type {
     NapCatPluginContext,
-    PluginHttpRequest,
-    PluginHttpResponse
 } from 'napcat-types/napcat-onebot/network/plugin/types';
 import { pluginState } from '../core/state';
 import { validateRandomOpeningPresetJsonText } from '../domain/presets/validate';
+import type { RandomOpeningPreset } from '../types';
+import { getGlobalPresets } from '../domain/presets/global-random-opening-presets';
+import { getUserPresets, setUserPresets } from '../domain/presets/user-random-opening-presets';
+import { getUserSelection, setUserSelection } from '../domain/presets/user-selection';
+
+function normalizeUserId(raw: unknown): string {
+    const v = String(raw ?? '').trim();
+    return v;
+}
+
+function sanitizePresetArray(raw: unknown): RandomOpeningPreset[] {
+    if (!Array.isArray(raw)) return [];
+    const now = Date.now();
+    const out: RandomOpeningPreset[] = [];
+    for (const row of raw) {
+        if (!row || typeof row !== 'object') continue;
+        const r = row as any;
+        const id = String(r.id ?? '').trim();
+        const name = String(r.name ?? '').trim();
+        const presetJson = String(r.presetJson ?? '');
+        if (!id || !name || !presetJson) continue;
+        out.push({
+            id,
+            name,
+            presetJson,
+            createdAt: typeof r.createdAt === 'number' ? r.createdAt : now,
+            updatedAt: typeof r.updatedAt === 'number' ? r.updatedAt : now,
+        });
+    }
+    return out;
+}
 
 /**
  * 注册 API 路由
@@ -89,6 +118,81 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
             }
         } catch (err) {
             ctx.logger.error('校验预设失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    /** 获取指定用户的个人预设 */
+    router.getNoAuth('/random-opening/users/:userId/presets', (req, res) => {
+        try {
+            const userId = normalizeUserId(req.params?.userId);
+            if (!userId) return res.status(400).json({ code: -1, message: '缺少 userId' });
+            const presets = getUserPresets(userId);
+            res.json({ code: 0, data: { userId, presets } });
+        } catch (err) {
+            ctx.logger.error('获取个人预设失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    /** 覆盖保存指定用户的个人预设 */
+    router.postNoAuth('/random-opening/users/:userId/presets', (req, res) => {
+        try {
+            const userId = normalizeUserId(req.params?.userId);
+            if (!userId) return res.status(400).json({ code: -1, message: '缺少 userId' });
+
+            const body = req.body as { presets?: unknown } | undefined;
+            const presets = sanitizePresetArray(body?.presets);
+            setUserPresets(userId, presets);
+            res.json({ code: 0, data: { userId, count: presets.length } });
+        } catch (err) {
+            ctx.logger.error('保存个人预设失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    /** 获取指定用户的默认选择 */
+    router.getNoAuth('/random-opening/users/:userId/selection', (req, res) => {
+        try {
+            const userId = normalizeUserId(req.params?.userId);
+            if (!userId) return res.status(400).json({ code: -1, message: '缺少 userId' });
+            const sel = getUserSelection(userId);
+            res.json({ code: 0, data: { userId, selection: sel } });
+        } catch (err) {
+            ctx.logger.error('获取选择状态失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    /** 保存指定用户的默认选择 */
+    router.postNoAuth('/random-opening/users/:userId/selection', (req, res) => {
+        try {
+            const userId = normalizeUserId(req.params?.userId);
+            if (!userId) return res.status(400).json({ code: -1, message: '缺少 userId' });
+
+            const body = req.body as { scope?: unknown; index?: unknown } | undefined;
+            const scopeRaw = String(body?.scope ?? '').trim();
+            const indexRaw = Number(body?.index);
+
+            const scope = scopeRaw === 'personal' ? 'personal' : (scopeRaw === 'global' ? 'global' : '');
+            const index = Math.trunc(indexRaw);
+            if (!scope) return res.status(400).json({ code: -1, message: 'scope 必须为 global 或 personal' });
+            if (!Number.isFinite(index) || index < 1) return res.status(400).json({ code: -1, message: 'index 必须为 >= 1 的整数' });
+
+            const globals = getGlobalPresets();
+            const personals = getUserPresets(userId);
+            const list = scope === 'global' ? globals : personals;
+            if (list.length === 0) {
+                return res.json({ code: 0, data: { ok: false, message: scope === 'global' ? '无全局预设' : '无个人预设' } });
+            }
+            if (index > list.length) {
+                return res.json({ code: 0, data: { ok: false, message: `序号超出范围（共 ${list.length} 条）` } });
+            }
+
+            setUserSelection(userId, scope as any, index);
+            res.json({ code: 0, data: { ok: true } });
+        } catch (err) {
+            ctx.logger.error('保存选择状态失败:', err);
             res.status(500).json({ code: -1, message: String(err) });
         }
     });

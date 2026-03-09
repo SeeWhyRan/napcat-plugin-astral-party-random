@@ -9,8 +9,8 @@ interface SidebarProps {
 const menuItems: { id: PageId; label: string; icon: React.ReactNode }[] = [
     { id: 'status', label: '仪表盘', icon: <IconDashboard size={18} /> },
     { id: 'config', label: '插件配置', icon: <IconSettings size={18} /> },
-    { id: 'groups', label: '群管理', icon: <IconGroup size={18} /> },
-    { id: 'random-opening', label: '随机开局', icon: <IconTerminal size={18} /> },
+    { id: 'groups', label: '群开启与个人预设', icon: <IconGroup size={18} /> },
+    { id: 'globalPresets', label: '全局预设', icon: <IconTerminal size={18} /> },
 ]
 
 export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
