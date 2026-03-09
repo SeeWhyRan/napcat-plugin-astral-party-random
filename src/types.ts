@@ -24,7 +24,24 @@ export interface PluginConfig {
     cooldownSeconds: number;
     /** 按群的单独配置 */
     groupConfigs: Record<string, GroupConfig>;
-    // TODO: 在这里添加你的插件配置项
+    /** 全局随机开局预设（所有人可用，仅能通过配置维护） */
+    globalPresets?: RandomOpeningPreset[];
+}
+
+// ==================== 随机开局预设 ====================
+
+/**
+ * 随机开局预设
+ * - id 用于稳定引用（删除/排序时不受影响）
+ * - name 用于展示/备注
+ * - presetJson 为网站导出的预设 JSON（字符串形式）
+ */
+export interface RandomOpeningPreset {
+    id: string;
+    name: string;
+    presetJson: string;
+    createdAt?: number;
+    updatedAt?: number;
 }
 
 /**

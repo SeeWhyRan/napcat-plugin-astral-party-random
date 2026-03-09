@@ -14,7 +14,7 @@ import fs from 'fs';
 import path from 'path';
 import type { NapCatPluginContext, PluginLogger } from 'napcat-types/napcat-onebot/network/plugin/types';
 import { DEFAULT_CONFIG } from '../config';
-import type { PluginConfig, GroupConfig } from '../types';
+import type { PluginConfig, GroupConfig, RandomOpeningPreset } from '../types';
 
 // ==================== 配置清洗工具 ====================
 
@@ -35,6 +35,24 @@ function sanitizeConfig(raw: unknown): PluginConfig {
     if (typeof raw.debug === 'boolean') out.debug = raw.debug;
     if (typeof raw.commandPrefix === 'string') out.commandPrefix = raw.commandPrefix;
     if (typeof raw.cooldownSeconds === 'number') out.cooldownSeconds = raw.cooldownSeconds;
+
+    // 全局随机开局预设清洗
+    if (Array.isArray((raw as any).globalPresets)) {
+        const presets: RandomOpeningPreset[] = [];
+        for (const p of (raw as any).globalPresets as unknown[]) {
+            if (!isObject(p)) continue;
+            const id = typeof p.id === 'string' ? p.id : '';
+            const name = typeof p.name === 'string' ? p.name : '';
+            const presetJson = typeof (p as any).presetJson === 'string' ? (p as any).presetJson : '';
+            if (!id || !name || !presetJson) continue;
+
+            const createdAt = typeof (p as any).createdAt === 'number' ? (p as any).createdAt : undefined;
+            const updatedAt = typeof (p as any).updatedAt === 'number' ? (p as any).updatedAt : undefined;
+
+            presets.push({ id, name, presetJson, createdAt, updatedAt });
+        }
+        out.globalPresets = presets;
+    }
 
     // 群配置清洗
     if (isObject(raw.groupConfigs)) {
@@ -68,8 +86,8 @@ class PluginState {
     /** 机器人自身 QQ 号 */
     selfId: string = '';
 
-    /** 活跃的定时器 Map: jobId -> NodeJS.Timeout */
-    timers: Map<string, ReturnType<typeof setInterval>> = new Map();
+    /** 活跃的定时器 Map: jobId -> NodeJS.Timeout（setTimeout/setInterval 均可） */
+    timers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
     /** 运行时统计 */
     stats = {
@@ -125,7 +143,7 @@ class PluginState {
     cleanup(): void {
         // 清理所有定时器
         for (const [jobId, timer] of this.timers) {
-            clearInterval(timer);
+            clearTimeout(timer);
             this.logger.debug(`(｡-ω-) 清理定时器: ${jobId}`);
         }
         this.timers.clear();
