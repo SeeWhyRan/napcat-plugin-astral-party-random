@@ -13,6 +13,97 @@
 import type { OB11Message, OB11PostSendMsg } from 'napcat-types/napcat-onebot';
 import type { NapCatPluginContext } from 'napcat-types/napcat-onebot/network/plugin/types';
 import { pluginState } from '../core/state';
+import { generateOpeningSummaryFromPresetJson } from '../astral-party-core/src/opening';
+
+// ==================== 两步交互：随机开局 JSON 监听 ====================
+
+type PendingRandomOpening = {
+    key: string;
+    createdAt: number;
+    expireAt: number;
+    messageType: 'group' | 'private';
+    groupId?: string;
+    userId: string;
+};
+
+/** key: 会话标识（群: g:<groupId>:<userId>；私聊: p:<userId>） */
+const pendingRandomOpeningMap = new Map<string, PendingRandomOpening>();
+
+function getSessionKey(event: OB11Message): string {
+    if (event.message_type === 'group' && event.group_id && event.user_id) {
+        return `g:${String(event.group_id)}:${String(event.user_id)}`;
+    }
+    return `p:${String(event.user_id ?? '')}`;
+}
+
+function safeExtractJsonText(input: string): string | null {
+    const s = input.trim();
+    if (!s) return null;
+
+    // 直接就是 JSON
+    if (s.startsWith('{') && s.endsWith('}')) return s;
+
+    // 允许用户夹杂说明文字：截取第一个 { 到最后一个 }
+    const first = s.indexOf('{');
+    const last = s.lastIndexOf('}');
+    if (first >= 0 && last > first) {
+        return s.slice(first, last + 1);
+    }
+    return null;
+}
+
+function decodeHtmlEntities(input: string): string {
+    // NapCat/某些转发链路可能会把引号等转义成 HTML 实体，导致 JSON.parse 报 Unexpected token '&'
+    // 仅做最常见几种实体的替换即可。
+    let out = input
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#34;', '"')
+        .replaceAll('&apos;', "'")
+        .replaceAll('&#39;', "'")
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&nbsp;', ' ')
+        // &amp; 必须最后替换，避免把 &quot; 之类提前破坏
+        .replaceAll('&amp;', '&');
+
+    // 数值实体（十进制/十六进制）
+    out = out.replace(/&#(\d+);/g, (_m, d) => {
+        const code = Number(d);
+        if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return _m;
+        try {
+            return String.fromCodePoint(code);
+        } catch {
+            return _m;
+        }
+    });
+    out = out.replace(/&#x([0-9a-fA-F]+);/g, (_m, hx) => {
+        const code = parseInt(String(hx), 16);
+        if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return _m;
+        try {
+            return String.fromCodePoint(code);
+        } catch {
+            return _m;
+        }
+    });
+
+    // 去掉常见不可见空白（避免看起来像 JSON，实际夹了控制字符）
+    out = out.replaceAll('\u00A0', ' '); // NBSP
+    out = out.replace(/[\u200B-\u200D\uFEFF]/g, ''); // 零宽字符
+    return out;
+}
+
+function formatOpeningSummary(summary: { mapName: string; difficultyName: string; groups: string[][] }): string {
+    const lines: string[] = [];
+    lines.push('[= 随机开局结果 =]');
+    lines.push(`地图: ${summary.mapName}`);
+    lines.push(`难度: ${summary.difficultyName}`);
+    lines.push('');
+    summary.groups.forEach((g, idx) => {
+        const picked = g.length > 0 ? g.join('、') : '(无)';
+        lines.push(`第${idx + 1}组: ${picked}`);
+    });
+    return lines.join('\n');
+}
 
 // ==================== CD 冷却管理 ====================
 
@@ -200,6 +291,186 @@ export async function handleMessage(ctx: NapCatPluginContext, event: OB11Message
         // 群消息：检查该群是否启用
         if (messageType === 'group' && groupId) {
             if (!pluginState.isGroupEnabled(String(groupId))) return;
+        }
+
+        // ==================== 1) 处理“两步交互”的下一条消息 ====================
+        {
+            const key = getSessionKey(event);
+            const pending = pendingRandomOpeningMap.get(key);
+            if (pending) {
+                // 超时兜底（通常由 timer 清理，这里再做一次保障）
+                if (Date.now() > pending.expireAt) {
+                    pendingRandomOpeningMap.delete(key);
+                    const timerId = `pending_random_opening:${key}`;
+                    const t = pluginState.timers.get(timerId);
+                    if (t) {
+                        clearTimeout(t);
+                        pluginState.timers.delete(timerId);
+                    }
+                } else {
+                    const text = rawMessage.trim();
+
+                    // 如果用户重复发送命令：保持在等待态，并刷新 TTL
+                    if (text === '/随机开局' || text === '/random_opening' || text === '/randomopening') {
+                        const ttlMs = 2 * 60 * 1000;
+                        pending.expireAt = Date.now() + ttlMs;
+                        pendingRandomOpeningMap.set(key, pending);
+
+                        const timerId = `pending_random_opening:${key}`;
+                        const t = pluginState.timers.get(timerId);
+                        if (t) {
+                            clearTimeout(t);
+                            pluginState.timers.delete(timerId);
+                        }
+                        const timer = setTimeout(async () => {
+                            const cur = pendingRandomOpeningMap.get(key);
+                            if (!cur) return;
+                            if (Date.now() <= cur.expireAt) return;
+                            pendingRandomOpeningMap.delete(key);
+                            pluginState.timers.delete(timerId);
+
+                            try {
+                                if (cur.messageType === 'group' && cur.groupId) {
+                                    await sendGroupMessage(pluginState.ctx, cur.groupId, '随机开局等待超时，请重新发送 /随机开局');
+                                } else {
+                                    await sendPrivateMessage(pluginState.ctx, cur.userId, '随机开局等待超时，请重新发送 /随机开局');
+                                }
+                            } catch {
+                                // ignore
+                            }
+                        }, ttlMs);
+                        pluginState.timers.set(timerId, timer);
+
+                        await sendReply(
+                            ctx,
+                            event,
+                            '已进入等待状态：请直接发送“网站导出的预设 JSON”（下一条消息将被读取）。\n如需退出，请发送 /取消。'
+                        );
+                        return;
+                    }
+
+                    // 允许取消
+                    if (text === '/取消' || text === '/cancel') {
+                        pendingRandomOpeningMap.delete(key);
+                        const timerId = `pending_random_opening:${key}`;
+                        const t = pluginState.timers.get(timerId);
+                        if (t) {
+                            clearTimeout(t);
+                            pluginState.timers.delete(timerId);
+                        }
+                        await sendReply(ctx, event, '已取消，请需要时重新发送 /随机开局');
+                        return;
+                    }
+
+                    // 不要把“下一条消息”再当作命令前缀来处理；只尝试解析 JSON
+                    const jsonText = safeExtractJsonText(text);
+                    if (!jsonText) {
+                        await sendReply(
+                            ctx,
+                            event,
+                            '未检测到有效 JSON。请直接发送网站导出的预设 JSON（以 { 开头、} 结尾），或发送 /取消 退出。'
+                        );
+                        return;
+                    }
+
+                    try {
+                        const decoded = decodeHtmlEntities(jsonText);
+                        const parsed = JSON.parse(decoded) as unknown;
+                        const summary = generateOpeningSummaryFromPresetJson(parsed as any);
+                        pendingRandomOpeningMap.delete(key);
+                        const timerId = `pending_random_opening:${key}`;
+                        const t = pluginState.timers.get(timerId);
+                        if (t) {
+                            clearTimeout(t);
+                            pluginState.timers.delete(timerId);
+                        }
+
+                        await sendReply(ctx, event, formatOpeningSummary(summary));
+                        pluginState.incrementProcessed();
+                        return;
+                    } catch (e: any) {
+                        // 解析/生成失败：保留 pending，允许用户重发
+                        const msg = typeof e?.message === 'string' ? e.message : String(e);
+
+                        if (pluginState.config.debug) {
+                            try {
+                                const decoded = decodeHtmlEntities(jsonText);
+                                // 尝试从错误信息中提取 position，截取附近片段方便定位
+                                const m = /position\s+(\d+)/i.exec(msg);
+                                const pos = m ? Number(m[1]) : NaN;
+                                if (Number.isFinite(pos)) {
+                                    const start = Math.max(0, pos - 40);
+                                    const end = Math.min(decoded.length, pos + 40);
+                                    const snippet = decoded.slice(start, end);
+                                    pluginState.logger.debug('随机开局 JSON 解析失败片段: ' + snippet);
+                                } else {
+                                    pluginState.logger.debug('随机开局 JSON 原始片段: ' + jsonText.slice(0, 200));
+                                }
+                            } catch {
+                                // ignore
+                            }
+                        }
+                        await sendReply(
+                            ctx,
+                            event,
+                            '解析或生成随机开局失败：' + msg + '\n请检查 JSON 是否为网站导出的预设配置，或发送 /取消 退出。'
+                        );
+                        return;
+                    }
+                }
+            }
+        }
+
+        // ==================== 2) 处理“/随机开局”命令（不依赖命令前缀） ====================
+        {
+            const text = rawMessage.trim();
+            if (text === '/随机开局' || text === '/random_opening' || text === '/randomopening') {
+                const key = getSessionKey(event);
+                const ttlMs = 2 * 60 * 1000;
+                const now = Date.now();
+                const pending: PendingRandomOpening = {
+                    key,
+                    createdAt: now,
+                    expireAt: now + ttlMs,
+                    messageType,
+                    groupId: messageType === 'group' ? String(groupId ?? '') : undefined,
+                    userId: String(userId ?? ''),
+                };
+                pendingRandomOpeningMap.set(key, pending);
+
+                // 设置超时自动清理
+                const timerId = `pending_random_opening:${key}`;
+                const existing = pluginState.timers.get(timerId);
+                if (existing) {
+                    clearTimeout(existing);
+                    pluginState.timers.delete(timerId);
+                }
+                const timer = setTimeout(async () => {
+                    const cur = pendingRandomOpeningMap.get(key);
+                    if (!cur) return;
+                    if (Date.now() <= cur.expireAt) return;
+                    pendingRandomOpeningMap.delete(key);
+                    pluginState.timers.delete(timerId);
+
+                    try {
+                        if (cur.messageType === 'group' && cur.groupId) {
+                            await sendGroupMessage(pluginState.ctx, cur.groupId, '随机开局等待超时，请重新发送 /随机开局');
+                        } else {
+                            await sendPrivateMessage(pluginState.ctx, cur.userId, '随机开局等待超时，请重新发送 /随机开局');
+                        }
+                    } catch {
+                        // ignore
+                    }
+                }, ttlMs);
+                pluginState.timers.set(timerId, timer);
+
+                await sendReply(
+                    ctx,
+                    event,
+                    '请在 2 分钟内发送“网站导出的预设 JSON”（下一条消息将被当作配置读取）。\n如需退出，请发送 /取消。'
+                );
+                return;
+            }
         }
 
         // 检查命令前缀

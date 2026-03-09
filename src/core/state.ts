@@ -68,8 +68,8 @@ class PluginState {
     /** 机器人自身 QQ 号 */
     selfId: string = '';
 
-    /** 活跃的定时器 Map: jobId -> NodeJS.Timeout */
-    timers: Map<string, ReturnType<typeof setInterval>> = new Map();
+    /** 活跃的定时器 Map: jobId -> NodeJS.Timeout（setTimeout/setInterval 均可） */
+    timers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
     /** 运行时统计 */
     stats = {
@@ -125,7 +125,7 @@ class PluginState {
     cleanup(): void {
         // 清理所有定时器
         for (const [jobId, timer] of this.timers) {
-            clearInterval(timer);
+            clearTimeout(timer);
             this.logger.debug(`(｡-ω-) 清理定时器: ${jobId}`);
         }
         this.timers.clear();
