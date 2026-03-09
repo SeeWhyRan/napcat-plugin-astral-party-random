@@ -13,6 +13,7 @@ export const DEFAULT_CONFIG: PluginConfig = {
     commandPrefix: '#cmd',
     cooldownSeconds: 60,
     groupConfigs: {},
+    globalPresets: [],
     // TODO: 在这里添加你的默认配置值
 };
 

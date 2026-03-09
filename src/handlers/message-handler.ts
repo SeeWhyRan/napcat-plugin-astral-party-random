@@ -13,6 +13,7 @@
 import type { OB11Message } from 'napcat-types/napcat-onebot';
 import type { NapCatPluginContext } from 'napcat-types/napcat-onebot/network/plugin/types';
 import { pluginState } from '../core/state';
+import { tryHandleRandomOpeningPresetFlow } from './features/random-opening-presets';
 import { tryHandleRandomOpeningFlow } from './features/random-opening';
 import { sendReply } from './utils/messaging';
 
@@ -77,8 +78,13 @@ export async function handleMessage(ctx: NapCatPluginContext, event: OB11Message
             if (!pluginState.isGroupEnabled(String(groupId))) return;
         }
 
-        // Feature：随机开局（两步交互）
+        // Feature：随机开局预设系统（列表/导入/删除/设置）
         // 该 feature 不依赖 commandPrefix，应当在前缀命令解析前执行
+        if (await tryHandleRandomOpeningPresetFlow(ctx, event)) {
+            return;
+        }
+
+        // Feature：随机开局（执行随机开局）
         if (await tryHandleRandomOpeningFlow(ctx, event)) {
             return;
         }
