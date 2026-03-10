@@ -26,6 +26,14 @@ export type OpeningSummary = {
   groups: string[][];
 };
 
+/** NapCat 用“候选名单”的精简输出：每组可抽到谁（allowed） */
+export type OpeningAllowedSummary = {
+  mapName: string;
+  difficultyName: string;
+  /** 每组满足过滤器的可选角色名列表 */
+  groups: string[][];
+};
+
 export type OpeningOptions = {
   /** 每组随机几个角色名（默认 1） */
   picksPerGroup?: number;
@@ -340,5 +348,21 @@ export function generateOpeningSummaryFromPresetJson(
     mapName: full.mapName,
     difficultyName: full.difficultyName,
     groups: full.groups.map((g) => g.picked),
+  };
+}
+
+/**
+ * NapCat 如果需要“能抽到谁”：用这个。
+ * 返回每组 allowed（满足过滤器的候选名单），而不是 picked。
+ */
+export function generateOpeningAllowedSummaryFromPresetJson(
+  presetJson: string | ExportedConfigV1 | SerializedGenerateConfig | GenerateConfig,
+  options: OpeningOptions = {}
+): OpeningAllowedSummary {
+  const full = generateOpeningFromPresetJson(presetJson, options);
+  return {
+    mapName: full.mapName,
+    difficultyName: full.difficultyName,
+    groups: full.groups.map((g) => g.allowed),
   };
 }
