@@ -19,6 +19,7 @@ import { tryHandleRandomOpeningFlow } from './features/random-opening';
 // re-export：保持外部调用不破坏（历史上可能从 message-handler 直接引用这些工具）
 export {
     sendReply,
+    sendImageReply,
     sendGroupMessage,
     sendPrivateMessage,
     sendForwardMsg,

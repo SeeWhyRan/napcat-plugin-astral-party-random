@@ -11,6 +11,13 @@ export const DEFAULT_CONFIG: PluginConfig = {
     enabled: true,
     groupConfigs: {},
     globalPresets: [],
+    render: {
+        enabled: false,
+        baseUrl: 'http://127.0.0.1:6099',
+        pluginId: 'napcat-plugin-puppeteer',
+        requestJson: '{"type":"png","fullPage":true,"omitBackground":false}',
+        timeoutMs: 15000,
+    },
     // TODO: 在这里添加你的默认配置值
 };
 
@@ -29,14 +36,8 @@ export const DEFAULT_CONFIG: PluginConfig = {
  */
 export function buildConfigSchema(ctx: NapCatPluginContext): PluginConfigSchema {
     return ctx.NapCatConfig.combine(
-        // 插件信息头部
-        ctx.NapCatConfig.html(`
-            <div style="padding: 16px; background: #FB7299; border-radius: 12px; margin-bottom: 20px; color: white;">
-                <h3 style="margin: 0 0 6px 0; font-size: 18px; font-weight: 600;">星趴随机生成</h3>
-                <p style="margin: 0; font-size: 13px; opacity: 0.85;">随机开局与预设管理</p>
-            </div>
-        `),
-        // 全局开关
-        ctx.NapCatConfig.boolean('enabled', '启用插件', true, '是否启用此插件的功能')
+        ctx.NapCatConfig.plainText(
+            '本插件不在此处提供配置项；请到插件自带 WebUI 页面进行配置：/plugin/' + ctx.pluginName + '/page/dashboard'
+        )
     );
 }

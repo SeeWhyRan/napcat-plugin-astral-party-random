@@ -7,6 +7,9 @@ import { getUserPresets } from '../../domain/presets/user-random-opening-presets
 import { getUserSelection } from '../../domain/presets/user-selection';
 import { generateOpeningAllowedSummaryFromUserJsonText } from '../../domain/astral-party/opening-service';
 import { formatOpeningAllowedSummary } from '../../domain/astral-party/format';
+import { pluginState } from '../../core/state';
+import { buildOpeningHtml, renderHtmlToImage } from '../../services/puppeteer-render-service';
+import { sendImageReply } from '../utils/messaging';
 
 const COMMANDS = {
     start: ['/随机开局', '/random_opening', '/randomopening'],
@@ -85,7 +88,27 @@ export async function tryHandleRandomOpeningFlow(ctx: NapCatPluginContext, event
         try {
             const summary = generateOpeningAllowedSummaryFromUserJsonText(preset.presetJson);
             const used = `预设: ${scope === 'global' ? '全局' : '个人'}${index} ${preset.name}\n\n`;
-            await sendReply(ctx, event, head + used + formatOpeningAllowedSummary(summary));
+            const textOut = head + used + formatOpeningAllowedSummary(summary);
+
+            // 尝试渲染为图片（按配置决定；失败则回退为文本）
+            if (pluginState.config.render?.enabled) {
+                const html = buildOpeningHtml('星趴随机开局', textOut.split('\n'));
+                const img = await renderHtmlToImage(ctx, html, {
+                    // 允许被 render.requestJson 覆盖，这里只给兜底
+                    viewport: { width: 900, height: 10 },
+                    fullPage: true,
+                    omitBackground: false,
+                });
+                if (img.ok) {
+                    await sendImageReply(ctx, event, img.buffer, img.contentType);
+                    pluginState.incrementProcessed();
+                    return true;
+                }
+                ctx.logger.warn('(；′⌒`) 图片渲染失败，回退文本: ' + img.message);
+            }
+
+            await sendReply(ctx, event, textOut);
+            pluginState.incrementProcessed();
             return true;
         } catch (e: any) {
             const msg = typeof e?.message === 'string' ? e.message : String(e);

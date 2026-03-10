@@ -7,6 +7,7 @@ import { IconTerminal, IconSearch, IconRefresh } from '../components/icons'
 export default function ConfigPage() {
     const [config, setConfig] = useState<PluginConfig | null>(null)
     const [saving, setSaving] = useState(false)
+    const [renderTesting, setRenderTesting] = useState(false)
 
     // 群聊开关
     const [groups, setGroups] = useState<GroupInfo[]>([])
@@ -70,7 +71,8 @@ export default function ConfigPage() {
                 method: 'POST',
                 body: JSON.stringify(newConfig),
             })
-            setConfig(newConfig)
+            // 后端保存时可能会写回 render.lastTest*，因此保存后再拉一次配置
+            await fetchConfig()
             showToast('配置已保存', 'success')
         } catch {
             showToast('保存失败', 'error')
@@ -78,6 +80,24 @@ export default function ConfigPage() {
             setSaving(false)
         }
     }, [config])
+
+    const testRender = useCallback(async () => {
+        if (!config) return
+        setRenderTesting(true)
+        try {
+            const res = await noAuthFetch<{ ok: boolean; message: string }>('/render/test', { method: 'POST' })
+            if (res.code === 0) {
+                await fetchConfig()
+                showToast('已执行测试', (res.data?.ok ? 'success' : 'warning') as any)
+            } else {
+                showToast(res.message || '测试失败', 'error')
+            }
+        } catch (e) {
+            showToast(String(e || '测试失败'), 'error')
+        } finally {
+            setRenderTesting(false)
+        }
+    }, [config, fetchConfig])
 
     const updateField = <K extends keyof PluginConfig>(key: K, value: PluginConfig[K]) => {
         if (!config) return
@@ -112,7 +132,105 @@ export default function ConfigPage() {
                         checked={config.enabled}
                         onChange={(v) => updateField('enabled', v)}
                     />
-                    {/* TODO: 在这里添加你的配置项 */}
+
+                    {/* 图片渲染（napcat-plugin-puppeteer） */}
+                    <div className="pt-2 border-t border-gray-100 dark:border-gray-800" />
+                    <ToggleRow
+                        label="图片渲染"
+                        desc="启用后，将尝试调用 napcat-plugin-puppeteer 把随机开局渲染为图片（NoAuth: /plugin/<plugin-id>/api/render）"
+                        checked={!!config.render?.enabled}
+                        onChange={(v) => updateField('render', {
+                            enabled: v,
+                            baseUrl: config.render?.baseUrl || 'http://127.0.0.1:6099',
+                            pluginId: config.render?.pluginId || 'napcat-plugin-puppeteer',
+                            requestJson: config.render?.requestJson || '{"type":"render","encoding":"base64"}',
+                            timeoutMs: config.render?.timeoutMs || 15000,
+                            lastTestAt: config.render?.lastTestAt,
+                            lastTestOk: config.render?.lastTestOk,
+                            lastTestMessage: config.render?.lastTestMessage,
+                        })}
+                    />
+
+                    <InputRow
+                        label="Puppeteer BaseUrl"
+                        desc="napcat WebUI 服务地址（通常无需改），例如 http://127.0.0.1:6099"
+                        value={config.render?.baseUrl || ''}
+                        onChange={(v) => updateField('render', {
+                            enabled: !!config.render?.enabled,
+                            baseUrl: v,
+                            pluginId: config.render?.pluginId || 'napcat-plugin-puppeteer',
+                            requestJson: config.render?.requestJson || '{"type":"render","encoding":"base64"}',
+                            timeoutMs: config.render?.timeoutMs || 15000,
+                            lastTestAt: config.render?.lastTestAt,
+                            lastTestOk: config.render?.lastTestOk,
+                            lastTestMessage: config.render?.lastTestMessage,
+                        })}
+                    />
+
+                    <InputRow
+                        label="Puppeteer 插件ID"
+                        desc="默认 napcat-plugin-puppeteer"
+                        value={config.render?.pluginId || ''}
+                        onChange={(v) => updateField('render', {
+                            enabled: !!config.render?.enabled,
+                            baseUrl: config.render?.baseUrl || 'http://127.0.0.1:6099',
+                            pluginId: v,
+                            requestJson: config.render?.requestJson || '{"type":"render","encoding":"base64"}',
+                            timeoutMs: config.render?.timeoutMs || 15000,
+                            lastTestAt: config.render?.lastTestAt,
+                            lastTestOk: config.render?.lastTestOk,
+                            lastTestMessage: config.render?.lastTestMessage,
+                        })}
+                    />
+
+                    <InputRow
+                        label="请求 JSON（高级）"
+                        desc="将合并到 /render 请求中（会覆盖默认字段）。建议保持包含 encoding=base64。"
+                        value={config.render?.requestJson || ''}
+                        onChange={(v) => updateField('render', {
+                            enabled: !!config.render?.enabled,
+                            baseUrl: config.render?.baseUrl || 'http://127.0.0.1:6099',
+                            pluginId: config.render?.pluginId || 'napcat-plugin-puppeteer',
+                            requestJson: v,
+                            timeoutMs: config.render?.timeoutMs || 15000,
+                            lastTestAt: config.render?.lastTestAt,
+                            lastTestOk: config.render?.lastTestOk,
+                            lastTestMessage: config.render?.lastTestMessage,
+                        })}
+                    />
+
+                    <InputRow
+                        label="超时（毫秒）"
+                        desc="渲染请求超时时间，例如 15000"
+                        type="number"
+                        value={String(config.render?.timeoutMs ?? 15000)}
+                        onChange={(v) => {
+                            const n = Number(v)
+                            updateField('render', {
+                                enabled: !!config.render?.enabled,
+                                baseUrl: config.render?.baseUrl || 'http://127.0.0.1:6099',
+                                pluginId: config.render?.pluginId || 'napcat-plugin-puppeteer',
+                                requestJson: config.render?.requestJson || '{"type":"render","encoding":"base64"}',
+                                timeoutMs: Number.isFinite(n) ? n : 15000,
+                                lastTestAt: config.render?.lastTestAt,
+                                lastTestOk: config.render?.lastTestOk,
+                                lastTestMessage: config.render?.lastTestMessage,
+                            })
+                        }}
+                    />
+
+                    <div className="flex items-center gap-3">
+                        <button
+                            className="btn btn-ghost text-xs"
+                            onClick={testRender}
+                            disabled={renderTesting}
+                        >
+                            {renderTesting ? '测试中...' : '测试连接'}
+                        </button>
+                        <div className="text-xs text-gray-400">
+                            {config.render?.lastTestMessage || '尚未测试'}
+                        </div>
+                    </div>
                 </div>
             </div>
 
