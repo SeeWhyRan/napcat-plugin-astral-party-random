@@ -16,16 +16,42 @@
 export interface PluginConfig {
     /** 全局开关：是否启用插件功能 */
     enabled: boolean;
-    /** 调试模式：启用后输出详细日志 */
-    debug: boolean;
-    /** 触发命令前缀，默认为 #cmd */
-    commandPrefix: string;
-    /** 同一命令请求冷却时间（秒），0 表示不限制 */
-    cooldownSeconds: number;
     /** 按群的单独配置 */
     groupConfigs: Record<string, GroupConfig>;
     /** 全局随机开局预设（所有人可用，仅能通过配置维护） */
     globalPresets?: RandomOpeningPreset[];
+
+    /** 图片渲染（对接 napcat-plugin-puppeteer） */
+    render?: PuppeteerRenderConfig;
+}
+
+// ==================== 图片渲染（Puppeteer）====================
+
+/**
+ * 对接 napcat-plugin-puppeteer 的渲染配置
+ * 通过其 /render 接口将 HTML 渲染为图片。
+ */
+export interface PuppeteerRenderConfig {
+    /** 是否启用渲染功能（命令仍可存在，但会回退为文本输出） */
+    enabled?: boolean;
+    /** NapCat Web 服务 baseUrl，例如 http://127.0.0.1:6099 */
+    baseUrl?: string;
+    /** puppeteer 插件 ID，例如 napcat-plugin-puppeteer */
+    pluginId?: string;
+    /**
+     * 额外透传给 /render 的 JSON（字符串形式）。
+     * 例如 {"type":"png","fullPage":true,"viewport":{"width":900,"height":600}}。
+     */
+    requestJson?: string;
+    /** 请求超时（毫秒） */
+    timeoutMs?: number;
+
+    /** 上次测试时间（毫秒时间戳） */
+    lastTestAt?: number;
+    /** 上次测试是否成功 */
+    lastTestOk?: boolean;
+    /** 上次测试信息（成功/失败原因） */
+    lastTestMessage?: string;
 }
 
 // ==================== 随机开局预设 ====================

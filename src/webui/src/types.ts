@@ -14,13 +14,20 @@ export interface PluginStatus {
 
 export interface PluginConfig {
     enabled: boolean
-    debug: boolean
-    commandPrefix: string
-    cooldownSeconds: number
     groupConfigs?: Record<string, GroupConfig>
     /** 全局随机开局预设（所有人可用，仅能通过配置维护） */
     globalPresets?: Array<{ id: string; name: string; presetJson: string; createdAt?: number; updatedAt?: number }>
-    // TODO: 在这里添加你的插件配置项类型
+    /** 图片渲染（napcat-plugin-puppeteer） */
+    render?: {
+        enabled: boolean
+        baseUrl: string
+        pluginId: string
+        requestJson: string
+        timeoutMs: number
+        lastTestAt?: number
+        lastTestOk?: boolean
+        lastTestMessage?: string
+    }
 }
 
 export interface GroupConfig {

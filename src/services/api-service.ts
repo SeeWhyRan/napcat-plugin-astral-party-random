@@ -25,6 +25,7 @@ import type { RandomOpeningPreset } from '../types';
 import { getGlobalPresets } from '../domain/presets/global-random-opening-presets';
 import { getUserPresets, setUserPresets } from '../domain/presets/user-random-opening-presets';
 import { getUserSelection, setUserSelection } from '../domain/presets/user-selection';
+import { testPuppeteerConnectivity } from './puppeteer-render-service';
 
 function isObject(v: unknown): v is Record<string, unknown> {
     return v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -98,10 +99,44 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
                 return res.status(400).json({ code: -1, message: '请求体为空' });
             }
             pluginState.updateConfig(body as Partial<import('../types').PluginConfig>);
+
+            // 若开启了图片渲染：保存后自动测试一次连通性，结果写回配置
+            if (pluginState.config.render?.enabled === true) {
+                try {
+                    const r = await testPuppeteerConnectivity(ctx);
+                    pluginState.updateConfigByKeyPath('render.lastTestAt', r.time);
+                    pluginState.updateConfigByKeyPath('render.lastTestOk', r.ok);
+                    pluginState.updateConfigByKeyPath('render.lastTestMessage', (r.ok ? 'OK: ' : 'FAIL: ') + r.message);
+                } catch (e) {
+                    pluginState.updateConfigByKeyPath('render.lastTestAt', Date.now());
+                    pluginState.updateConfigByKeyPath('render.lastTestOk', false);
+                    pluginState.updateConfigByKeyPath('render.lastTestMessage', 'FAIL: ' + String(e));
+                }
+            } else {
+                // 未启用：把测试信息归位，避免 UI 显示旧结果
+                pluginState.updateConfigByKeyPath('render.lastTestAt', Date.now());
+                pluginState.updateConfigByKeyPath('render.lastTestOk', false);
+                pluginState.updateConfigByKeyPath('render.lastTestMessage', '未启用');
+            }
+
             ctx.logger.info('配置已保存');
             res.json({ code: 0, message: 'ok' });
         } catch (err) {
             ctx.logger.error('保存配置失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    /** 测试渲染连通性（无鉴权） */
+    router.postNoAuth('/render/test', async (_req, res) => {
+        try {
+            const r = await testPuppeteerConnectivity(ctx);
+            pluginState.updateConfigByKeyPath('render.lastTestAt', r.time);
+            pluginState.updateConfigByKeyPath('render.lastTestOk', r.ok);
+            pluginState.updateConfigByKeyPath('render.lastTestMessage', (r.ok ? 'OK: ' : 'FAIL: ') + r.message);
+            res.json({ code: 0, data: r });
+        } catch (err) {
+            ctx.logger.error('渲染连通性测试失败:', err);
             res.status(500).json({ code: -1, message: String(err) });
         }
     });

@@ -33,6 +33,23 @@ export async function sendReply(
     }
 }
 
+/**
+ * 发送图片回复
+ * OneBot11 图片段：{ type: 'image', data: { file: string } }
+ * 这里使用 data URI（base64）避免落盘；若你的环境不支持，可改成写入临时文件后传 file 路径。
+ */
+export async function sendImageReply(
+    ctx: NapCatPluginContext,
+    event: OB11Message,
+    imageBuffer: Buffer,
+    contentType: string = 'image/png'
+): Promise<boolean> {
+    const mime = contentType || 'image/png';
+    const base64 = imageBuffer.toString('base64');
+    const dataUri = 'data:' + mime + ';base64,' + base64;
+    return sendReply(ctx, event, [{ type: 'image', data: { file: dataUri } }] as any);
+}
+
 /** 发送群消息 */
 export async function sendGroupMessage(
     ctx: NapCatPluginContext,

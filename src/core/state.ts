@@ -32,9 +32,24 @@ function sanitizeConfig(raw: unknown): PluginConfig {
     const out: PluginConfig = { ...DEFAULT_CONFIG, groupConfigs: {} };
 
     if (typeof raw.enabled === 'boolean') out.enabled = raw.enabled;
-    if (typeof raw.debug === 'boolean') out.debug = raw.debug;
-    if (typeof raw.commandPrefix === 'string') out.commandPrefix = raw.commandPrefix;
-    if (typeof raw.cooldownSeconds === 'number') out.cooldownSeconds = raw.cooldownSeconds;
+
+    // 图片渲染配置清洗
+    if (isObject((raw as any).render)) {
+        const r = (raw as any).render as Record<string, unknown>;
+        out.render = {
+            enabled: typeof r.enabled === 'boolean' ? r.enabled : DEFAULT_CONFIG.render?.enabled,
+            baseUrl: typeof r.baseUrl === 'string' ? r.baseUrl : DEFAULT_CONFIG.render?.baseUrl,
+            pluginId: typeof r.pluginId === 'string' ? r.pluginId : DEFAULT_CONFIG.render?.pluginId,
+            requestJson: typeof r.requestJson === 'string' ? r.requestJson : DEFAULT_CONFIG.render?.requestJson,
+            timeoutMs: typeof r.timeoutMs === 'number' ? r.timeoutMs : DEFAULT_CONFIG.render?.timeoutMs,
+            lastTestAt: typeof r.lastTestAt === 'number' ? r.lastTestAt : DEFAULT_CONFIG.render?.lastTestAt,
+            lastTestOk: typeof r.lastTestOk === 'boolean' ? r.lastTestOk : DEFAULT_CONFIG.render?.lastTestOk,
+            lastTestMessage: typeof r.lastTestMessage === 'string' ? r.lastTestMessage : DEFAULT_CONFIG.render?.lastTestMessage,
+        };
+    } else if (DEFAULT_CONFIG.render) {
+        // 兜底：没有 render 字段时，也补齐默认 render
+        out.render = { ...DEFAULT_CONFIG.render };
+    }
 
     // 全局随机开局预设清洗
     if (Array.isArray((raw as any).globalPresets)) {
@@ -251,6 +266,24 @@ class PluginState {
     updateConfig(partial: Partial<PluginConfig>): void {
         this.config = { ...this.config, ...partial };
         this.saveConfig();
+    }
+
+    /**
+     * 基于点路径更新配置，例如 key="render.enabled"
+     */
+    updateConfigByKeyPath(keyPath: string, value: unknown): void {
+        const pathParts = String(keyPath || '').split('.').map((s) => s.trim()).filter(Boolean);
+        if (pathParts.length === 0) return;
+
+        const clone: any = JSON.parse(JSON.stringify(this.config));
+        let cur: any = clone;
+        for (let i = 0; i < pathParts.length - 1; i++) {
+            const k = pathParts[i];
+            if (!isObject(cur[k])) cur[k] = {};
+            cur = cur[k];
+        }
+        cur[pathParts[pathParts.length - 1]] = value;
+        this.replaceConfig(clone as PluginConfig);
     }
 
     /**

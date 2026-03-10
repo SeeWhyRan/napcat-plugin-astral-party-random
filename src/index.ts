@@ -22,7 +22,6 @@
 import type {
     PluginModule,
     PluginConfigSchema,
-    PluginConfigUIController,
     NapCatPluginContext,
 } from 'napcat-types/napcat-onebot/network/plugin/types';
 import { EventType } from 'napcat-types/napcat-onebot/event/index';
@@ -31,6 +30,7 @@ import { buildConfigSchema } from './config';
 import { pluginState } from './core/state';
 import { handleMessage } from './handlers/message-handler';
 import { registerApiRoutes } from './services/api-service';
+import { testPuppeteerConnectivity } from './services/puppeteer-render-service';
 import type { PluginConfig } from './types';
 
 // ==================== 配置 UI Schema ====================
@@ -125,8 +125,35 @@ export const plugin_on_config_change: PluginModule['plugin_on_config_change'] = 
     ctx, ui, key, value, currentConfig
 ) => {
     try {
-        pluginState.updateConfig({ [key]: value });
+        // 支持点路径（例如 render.enabled）
+        if (String(key).includes('.')) {
+            pluginState.updateConfigByKeyPath(key, value);
+        } else {
+            pluginState.updateConfig({ [key]: value } as any);
+        }
         ctx.logger.debug(`配置项 ${key} 已更新`);
+
+        // 若涉及渲染配置：开启/修改时自动测试一次连接
+        const k = String(key || '');
+        const isRenderKey = k === 'render.enabled' || k.startsWith('render.');
+        if (isRenderKey) {
+            // 仅在渲染开启时做测试（避免每次改字段都打接口）
+            const enabled = pluginState.config.render?.enabled === true;
+            if (enabled) {
+                const r = await testPuppeteerConnectivity(ctx);
+                pluginState.updateConfigByKeyPath('render.lastTestAt', r.time);
+                pluginState.updateConfigByKeyPath('render.lastTestOk', r.ok);
+                pluginState.updateConfigByKeyPath('render.lastTestMessage', (r.ok ? 'OK: ' : 'FAIL: ') + r.message);
+
+                // 触发 UI 刷新，让结果立刻显示
+                ui.updateSchema(buildConfigSchema(ctx));
+            } else {
+                pluginState.updateConfigByKeyPath('render.lastTestAt', Date.now());
+                pluginState.updateConfigByKeyPath('render.lastTestOk', false);
+                pluginState.updateConfigByKeyPath('render.lastTestMessage', '未启用');
+                ui.updateSchema(buildConfigSchema(ctx));
+            }
+        }
     } catch (err) {
         ctx.logger.error(`更新配置项 ${key} 失败:`, err);
     }
@@ -148,9 +175,9 @@ function registerWebUI(ctx: NapCatPluginContext): void {
     // 访问路径: /plugin/<plugin-id>/page/dashboard
     router.page({
         path: 'dashboard',
-        title: '插件仪表盘',
+        title: '星趴随机生成',
         htmlFile: 'webui/index.html',
-        description: '插件管理控制台',
+        description: '控制台',
     });
 
     ctx.logger.debug('WebUI 路由注册完成');

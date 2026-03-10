@@ -9,7 +9,7 @@ interface SidebarProps {
 const menuItems: { id: PageId; label: string; icon: React.ReactNode }[] = [
     { id: 'status', label: '仪表盘', icon: <IconDashboard size={18} /> },
     { id: 'config', label: '插件配置', icon: <IconSettings size={18} /> },
-    { id: 'groups', label: '群开启与个人预设', icon: <IconGroup size={18} /> },
+    { id: 'groups', label: '个人预设', icon: <IconGroup size={18} /> },
     { id: 'globalPresets', label: '全局预设', icon: <IconTerminal size={18} /> },
     { id: 'backup', label: '备份与恢复', icon: <IconDownload size={18} /> },
 ]
@@ -24,7 +24,7 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
                 </div>
                 <div>
                     <h1 className="font-bold text-sm leading-tight text-gray-900 dark:text-white">Astral Party</h1>
-                    <p className="text-[10px] text-gray-400 font-medium tracking-wider">NAPCAT PLUGIN</p>
+                    <p className="text-[10px] text-gray-400 font-medium tracking-wider">星趴随机生成</p>
                 </div>
             </div>
 
@@ -45,7 +45,7 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
             {/* Footer */}
             <div className="px-3 pb-2">
                 <a
-                    href="https://github.com"
+                    href="https://github.com/SeeWhyRan/napcat-plugin-astral-party-random"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="sidebar-item no-underline"
