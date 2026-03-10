@@ -5,8 +5,8 @@ import { sendReply } from '../utils/messaging';
 import { getGlobalPresets } from '../../domain/presets/global-random-opening-presets';
 import { getUserPresets } from '../../domain/presets/user-random-opening-presets';
 import { getUserSelection } from '../../domain/presets/user-selection';
-import { generateOpeningSummaryFromUserJsonText } from '../../domain/astral-party/opening-service';
-import { formatOpeningSummary } from '../../domain/astral-party/format';
+import { generateOpeningAllowedSummaryFromUserJsonText } from '../../domain/astral-party/opening-service';
+import { formatOpeningAllowedSummary } from '../../domain/astral-party/format';
 
 const COMMANDS = {
     start: ['/随机开局', '/random_opening', '/randomopening'],
@@ -83,9 +83,9 @@ export async function tryHandleRandomOpeningFlow(ctx: NapCatPluginContext, event
 
         const preset = finalList[index - 1];
         try {
-            const summary = generateOpeningSummaryFromUserJsonText(preset.presetJson);
+            const summary = generateOpeningAllowedSummaryFromUserJsonText(preset.presetJson);
             const used = `预设: ${scope === 'global' ? '全局' : '个人'}${index} ${preset.name}\n\n`;
-            await sendReply(ctx, event, head + used + formatOpeningSummary(summary));
+            await sendReply(ctx, event, head + used + formatOpeningAllowedSummary(summary));
             return true;
         } catch (e: any) {
             const msg = typeof e?.message === 'string' ? e.message : String(e);
