@@ -5,10 +5,11 @@ import { sendReply } from '../utils/messaging';
 import { getGlobalPresets } from '../../domain/presets/global-random-opening-presets';
 import { getUserPresets } from '../../domain/presets/user-random-opening-presets';
 import { getUserSelection } from '../../domain/presets/user-selection';
-import { generateOpeningAllowedSummaryFromUserJsonText } from '../../domain/astral-party/opening-service';
+import { generateOpeningAllowedSummaryFromUserJsonText, generateOpeningAllowedWithImagesFromUserJsonText } from '../../domain/astral-party/opening-service';
 import { formatOpeningAllowedSummary } from '../../domain/astral-party/format';
 import { pluginState } from '../../core/state';
-import { buildOpeningHtml, renderHtmlToImage } from '../../services/puppeteer-render-service';
+import { renderHtmlToImage } from '../../services/puppeteer-render-service';
+import { buildOpeningAllowedWithImagesHtml } from '../../rendering';
 import { sendImageReply } from '../utils/messaging';
 
 const COMMANDS = {
@@ -92,7 +93,14 @@ export async function tryHandleRandomOpeningFlow(ctx: NapCatPluginContext, event
 
             // 尝试渲染为图片（按配置决定；失败则回退为文本）
             if (pluginState.config.render?.enabled) {
-                const html = buildOpeningHtml('星趴随机开局', textOut.split('\n'));
+                // 用“候选名单 + 角色图片”渲染更美观
+                const withImages = generateOpeningAllowedWithImagesFromUserJsonText(preset.presetJson, { maxPerGroup: 32 });
+                const html = buildOpeningAllowedWithImagesHtml({
+                    title: '星趴随机开局',
+                    summary: withImages,
+                    presetNote: preset.name,
+                    maxPerGroup: 32,
+                });
                 const img = await renderHtmlToImage(ctx, html, {
                     // 允许被 render.requestJson 覆盖，这里只给兜底
                     viewport: { width: 900, height: 10 },

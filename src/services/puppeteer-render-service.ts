@@ -213,37 +213,3 @@ export async function renderHtmlToImage(
         clearTimeout(t);
     }
 }
-
-export function buildOpeningHtml(title: string, lines: string[]): string {
-    // 简单纯色风格（避免渐变），与 WebUI 主题色一致
-    const safeTitle = title.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const safeLines = lines.map((l) => l.replace(/</g, '&lt;').replace(/>/g, '&gt;'));
-
-    return [
-        '<!doctype html>',
-        '<html lang="zh-CN">',
-        '<head>',
-        '<meta charset="utf-8"/>',
-        '<meta name="viewport" content="width=device-width,initial-scale=1"/>',
-        '<style>',
-        '  body{margin:0;padding:24px;background:#fff1f3;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;color:#111827;}',
-        '  .card{max-width:900px;margin:0 auto;background:#ffffff;border:1px solid rgba(251,114,153,0.25);border-radius:16px;box-shadow:0 8px 30px rgba(251,114,153,0.20);overflow:hidden;}',
-        '  .header{padding:14px 18px;background:#FB7299;color:#fff;}',
-        '  .header .title{font-size:18px;font-weight:700;line-height:1.2;}',
-        '  .content{padding:16px 18px;}',
-        '  .line{white-space:pre-wrap;word-break:break-word;font-size:14px;line-height:1.6;margin:2px 0;}',
-        '  .muted{opacity:0.75;}',
-        '</style>',
-        '</head>',
-        '<body>',
-        '<div class="card">',
-        '  <div class="header"><div class="title">' + safeTitle + '</div></div>',
-        '  <div class="content">',
-        ...safeLines.map((l) => '    <div class="line">' + l + '</div>'),
-        '    <div class="line muted">生成时间: ' + new Date().toLocaleString('zh-CN') + '</div>',
-        '  </div>',
-        '</div>',
-        '</body>',
-        '</html>',
-    ].join('\n');
-}
