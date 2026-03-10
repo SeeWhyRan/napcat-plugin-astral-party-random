@@ -26,6 +26,14 @@ import { getGlobalPresets } from '../domain/presets/global-random-opening-preset
 import { getUserPresets, setUserPresets } from '../domain/presets/user-random-opening-presets';
 import { getUserSelection, setUserSelection } from '../domain/presets/user-selection';
 
+function isObject(v: unknown): v is Record<string, unknown> {
+    return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+// dataPath 下的业务数据文件名（用于导出/导入备份）
+const USER_PRESETS_DATA_FILE = 'random-opening-presets.users.json';
+const USER_SELECTION_DATA_FILE = 'random-opening-presets.selection.json';
+
 function normalizeUserId(raw: unknown): string {
     const v = String(raw ?? '').trim();
     return v;
@@ -94,6 +102,85 @@ export function registerApiRoutes(ctx: NapCatPluginContext): void {
             res.json({ code: 0, message: 'ok' });
         } catch (err) {
             ctx.logger.error('保存配置失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    // ==================== 备份导出/导入（无鉴权）====================
+
+    /** 导出：配置 + 业务数据（dataPath 下的 json） */
+    router.getNoAuth('/backup/export', (_req, res) => {
+        try {
+            const userPresetsFile = pluginState.loadDataFile(USER_PRESETS_DATA_FILE, { version: 1, users: {} });
+            const userSelectionFile = pluginState.loadDataFile(USER_SELECTION_DATA_FILE, { version: 1, users: {} });
+
+            res.json({
+                code: 0,
+                data: {
+                    version: 1,
+                    exportedAt: Date.now(),
+                    config: pluginState.config,
+                    dataFiles: {
+                        userPresetsFile,
+                        userSelectionFile,
+                    },
+                },
+            });
+        } catch (err) {
+            ctx.logger.error('导出备份失败:', err);
+            res.status(500).json({ code: -1, message: String(err) });
+        }
+    });
+
+    /** 导入：覆盖写入配置/数据（可选项控制） */
+    router.postNoAuth('/backup/import', (req, res) => {
+        try {
+            const body = (req.body || {}) as Record<string, unknown>;
+
+            const applyConfig = body.applyConfig !== false;
+            const applyData = body.applyData !== false;
+
+            const payload = body.payload;
+            if (!isObject(payload)) {
+                return res.status(400).json({ code: -1, message: 'payload 必须为对象' });
+            }
+
+            const ver = Number((payload as any).version);
+            if (!Number.isFinite(ver) || ver !== 1) {
+                return res.status(400).json({ code: -1, message: '不支持的备份版本' });
+            }
+
+            let applied = { config: false, userPresets: false, userSelection: false };
+
+            if (applyConfig) {
+                const cfg = (payload as any).config;
+                if (!cfg) {
+                    return res.status(400).json({ code: -1, message: 'payload.config 缺失' });
+                }
+                pluginState.replaceConfig(cfg as any);
+                applied.config = true;
+            }
+
+            if (applyData) {
+                const dataFiles = (payload as any).dataFiles;
+                if (!isObject(dataFiles)) {
+                    return res.status(400).json({ code: -1, message: 'payload.dataFiles 缺失' });
+                }
+
+                if ((dataFiles as any).userPresetsFile) {
+                    pluginState.saveDataFile(USER_PRESETS_DATA_FILE, (dataFiles as any).userPresetsFile);
+                    applied.userPresets = true;
+                }
+                if ((dataFiles as any).userSelectionFile) {
+                    pluginState.saveDataFile(USER_SELECTION_DATA_FILE, (dataFiles as any).userSelectionFile);
+                    applied.userSelection = true;
+                }
+            }
+
+            ctx.logger.info('备份导入完成 | config=' + String(applied.config) + ' data=' + String(applyData));
+            res.json({ code: 0, data: { ok: true, applied } });
+        } catch (err) {
+            ctx.logger.error('导入备份失败:', err);
             res.status(500).json({ code: -1, message: String(err) });
         }
     });
