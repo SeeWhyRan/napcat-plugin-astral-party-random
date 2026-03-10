@@ -68,25 +68,6 @@ export default function ConfigPage() {
                         checked={config.enabled}
                         onChange={(v) => updateField('enabled', v)}
                     />
-                    <ToggleRow
-                        label="调试模式"
-                        desc="启用后输出详细日志到控制台"
-                        checked={config.debug}
-                        onChange={(v) => updateField('debug', v)}
-                    />
-                    <InputRow
-                        label="命令前缀"
-                        desc="触发命令的前缀"
-                        value={config.commandPrefix}
-                        onChange={(v) => updateField('commandPrefix', v)}
-                    />
-                    <InputRow
-                        label="冷却时间 (秒)"
-                        desc="同一命令请求冷却时间，0 表示不限制"
-                        value={String(config.cooldownSeconds)}
-                        type="number"
-                        onChange={(v) => updateField('cooldownSeconds', Number(v) || 0)}
-                    />
                     {/* TODO: 在这里添加你的配置项 */}
                 </div>
             </div>

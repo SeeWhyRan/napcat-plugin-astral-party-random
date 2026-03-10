@@ -9,9 +9,6 @@ import type { PluginConfig } from './types';
 /** 默认配置 */
 export const DEFAULT_CONFIG: PluginConfig = {
     enabled: true,
-    debug: false,
-    commandPrefix: '#cmd',
-    cooldownSeconds: 60,
     groupConfigs: {},
     globalPresets: [],
     // TODO: 在这里添加你的默认配置值
@@ -35,18 +32,11 @@ export function buildConfigSchema(ctx: NapCatPluginContext): PluginConfigSchema 
         // 插件信息头部
         ctx.NapCatConfig.html(`
             <div style="padding: 16px; background: #FB7299; border-radius: 12px; margin-bottom: 20px; color: white;">
-                <h3 style="margin: 0 0 6px 0; font-size: 18px; font-weight: 600;">插件模板</h3>
-                <p style="margin: 0; font-size: 13px; opacity: 0.85;">NapCat 插件开发模板，请根据需要修改配置</p>
+                <h3 style="margin: 0 0 6px 0; font-size: 18px; font-weight: 600;">星趴随机生成</h3>
+                <p style="margin: 0; font-size: 13px; opacity: 0.85;">随机开局与预设管理</p>
             </div>
         `),
         // 全局开关
-        ctx.NapCatConfig.boolean('enabled', '启用插件', true, '是否启用此插件的功能'),
-        // 调试模式
-        ctx.NapCatConfig.boolean('debug', '调试模式', false, '启用后将输出详细的调试日志'),
-        // 命令前缀
-        ctx.NapCatConfig.text('commandPrefix', '命令前缀', '#cmd', '触发命令的前缀，默认为 #cmd'),
-        // 冷却时间
-        ctx.NapCatConfig.number('cooldownSeconds', '冷却时间（秒）', 60, '同一命令请求冷却时间，0 表示不限制')
-        // TODO: 在这里添加你的配置项
+        ctx.NapCatConfig.boolean('enabled', '启用插件', true, '是否启用此插件的功能')
     );
 }

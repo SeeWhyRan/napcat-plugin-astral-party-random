@@ -1,6 +1,12 @@
 import { generateOpeningAllowedSummaryFromPresetJson, generateOpeningSummaryFromPresetJson } from '../../astral-party-core/src/opening';
-import type { OpeningAllowedSummary, OpeningSummary } from './format';
+import type { OpeningAllowedSummary } from './format';
 import { decodeHtmlEntities } from '../../handlers/utils/text';
+
+type OpeningSummary = {
+    mapName: string;
+    difficultyName: string;
+    groups: string[][];
+};
 
 /**
  * 将“文本形式的预设 JSON”解析并生成随机开局。

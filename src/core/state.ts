@@ -32,9 +32,6 @@ function sanitizeConfig(raw: unknown): PluginConfig {
     const out: PluginConfig = { ...DEFAULT_CONFIG, groupConfigs: {} };
 
     if (typeof raw.enabled === 'boolean') out.enabled = raw.enabled;
-    if (typeof raw.debug === 'boolean') out.debug = raw.debug;
-    if (typeof raw.commandPrefix === 'string') out.commandPrefix = raw.commandPrefix;
-    if (typeof raw.cooldownSeconds === 'number') out.cooldownSeconds = raw.cooldownSeconds;
 
     // 全局随机开局预设清洗
     if (Array.isArray((raw as any).globalPresets)) {

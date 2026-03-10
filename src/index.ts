@@ -22,7 +22,6 @@
 import type {
     PluginModule,
     PluginConfigSchema,
-    PluginConfigUIController,
     NapCatPluginContext,
 } from 'napcat-types/napcat-onebot/network/plugin/types';
 import { EventType } from 'napcat-types/napcat-onebot/event/index';
