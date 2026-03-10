@@ -147,9 +147,9 @@ function registerWebUI(ctx: NapCatPluginContext): void {
     // 访问路径: /plugin/<plugin-id>/page/dashboard
     router.page({
         path: 'dashboard',
-        title: '插件仪表盘',
+        title: '星趴随机生成',
         htmlFile: 'webui/index.html',
-        description: '插件管理控制台',
+        description: '控制台',
     });
 
     ctx.logger.debug('WebUI 路由注册完成');
