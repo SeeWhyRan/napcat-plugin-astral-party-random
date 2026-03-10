@@ -1,7 +1,7 @@
 {
   "name": "napcat-plugin-astral-party-random",
   "plugin": "星趴随机生成",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "main": "index.mjs",
   "description": "星趴随机生成工具：随机生成角色选择与地图选择",

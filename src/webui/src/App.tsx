@@ -6,16 +6,18 @@ import StatusPage from './pages/StatusPage'
 import ConfigPage from './pages/ConfigPage'
 import GroupsPage from './pages/GroupsPage'
 import GlobalPresetsPage from './pages/GlobalPresetsPage'
+import BackupPage from './pages/BackupPage'
 import { useStatus } from './hooks/useStatus'
 import { useTheme } from './hooks/useTheme'
 
-export type PageId = 'status' | 'config' | 'groups' | 'globalPresets'
+export type PageId = 'status' | 'config' | 'groups' | 'globalPresets' | 'backup'
 
 const pageConfig: Record<PageId, { title: string; desc: string }> = {
     status: { title: '仪表盘', desc: '插件运行状态与数据概览' },
     config: { title: '插件配置', desc: '基础设置与参数配置' },
     groups: { title: '群开启与个人预设', desc: '简化群开关 + 个人预设/选择状态' },
-    globalPresets: { title: '全局预设', desc: '维护全局随机开局预设（配置层）' }
+    globalPresets: { title: '全局预设', desc: '维护全局随机开局预设（配置层）' },
+    backup: { title: '备份与恢复', desc: '导出/导入配置与数据，便于更新迁移' },
 }
 
 function App() {
@@ -41,6 +43,7 @@ function App() {
             case 'config': return <ConfigPage />
             case 'groups': return <GroupsPage />
             case 'globalPresets': return <GlobalPresetsPage />
+            case 'backup': return <BackupPage />
             default: return <StatusPage status={status} onRefresh={fetchStatus} />
         }
     }

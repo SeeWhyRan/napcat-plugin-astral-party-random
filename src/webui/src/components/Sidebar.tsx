@@ -1,5 +1,5 @@
 import type { PageId } from '../App'
-import { IconDashboard, IconSettings, IconGroup, IconGithub, IconPlugin, IconSun, IconTerminal } from './icons'
+import { IconDashboard, IconSettings, IconGroup, IconGithub, IconPlugin, IconSun, IconTerminal, IconDownload } from './icons'
 
 interface SidebarProps {
     currentPage: PageId
@@ -11,6 +11,7 @@ const menuItems: { id: PageId; label: string; icon: React.ReactNode }[] = [
     { id: 'config', label: '插件配置', icon: <IconSettings size={18} /> },
     { id: 'groups', label: '群开启与个人预设', icon: <IconGroup size={18} /> },
     { id: 'globalPresets', label: '全局预设', icon: <IconTerminal size={18} /> },
+    { id: 'backup', label: '备份与恢复', icon: <IconDownload size={18} /> },
 ]
 
 export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
